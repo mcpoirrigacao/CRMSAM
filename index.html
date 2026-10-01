@@ -277,6 +277,7 @@ body:not(.is-admin):not(.is-editor) .pode-editar{display:none!important}
     <div class="actions">
       <span class="status" id="status"></span>
       <button class="btn ghost" id="btnConta" type="button" hidden title="Conta Microsoft"></button>
+      <button class="btn ghost edit-only somente-admin" id="btnUsers" type="button" title="Administradores, editores e usuários comuns">👥 Usuários</button>
       <button class="btn ghost" id="btnPresent" aria-pressed="false" type="button">Modo apresentação</button>
       <details class="menu edit-only" id="menu"><summary class="btn ghost">Arquivo ▾</summary>
         <div class="menu-pop">
@@ -284,7 +285,6 @@ body:not(.is-admin):not(.is-editor) .pode-editar{display:none!important}
           <button type="button" id="btnCsv"><span>Exportar para Excel (.csv)</span><small>Clientes com os filtros atuais</small></button>
           <button type="button" id="btnJson"><span>Baixar backup (.json)</span><small>Cópia de segurança dos dados</small></button>
           <button type="button" id="btnImport" class="somente-admin"><span>Importar backup (.json)</span><small>Substitui os dados atuais na pasta CRM SAM</small></button>
-          <button type="button" id="btnUsers" class="somente-admin"><span>Gerenciar usuários</span><small>Administradores, editores e usuários comuns</small></button>
         </div></details>
       <input type="file" id="fileIn" accept=".json,application/json" hidden="">
       <button class="btn edit-only pode-editar" id="btnSaveTop" type="button">Salvar</button>
@@ -810,7 +810,7 @@ $('btnNew').onclick=()=>openDeal(null);
 $('btnCsv').onclick=()=>{$('menu').open=false;exportCsv();};
 $('btnSaveFile').onclick=()=>{$('menu').open=false;atualizarAgora();};
 $('btnSaveTop').onclick=()=>{ if(!temPendencia()){ toast('Tudo salvo no OneDrive'); return; } clearTimeout(saveTimer); salvarDados(); };
-$('btnUsers').onclick=()=>{$('menu').open=false;openUsers();};
+$('btnUsers').onclick=()=>openUsers();
 $('btnConta').onclick=trocarConta;
 $('gateBtn').onclick=()=>{ if(gateAcao) gateAcao(); };
 $('gateBtn2').onclick=()=>{ if(gateAcao2) gateAcao2(); };
