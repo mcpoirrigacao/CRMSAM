@@ -244,7 +244,7 @@ body.present .card[draggable]{cursor:default}
 .menu-pop small{color:var(--muted);font-size:11.5px}
 .dirty{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--warn);margin-right:6px;vertical-align:1px}
 
-/* ---------- Acesso Microsoft 365 / OneDrive ---------- */
+/* ---------- Acesso Microsoft 365 / SharePoint ---------- */
 .gate{position:fixed;inset:0;z-index:100;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px}
 .gate[hidden]{display:none}
 .gate-box{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:32px 28px;max-width:420px;width:100%;display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center}
@@ -281,7 +281,7 @@ body:not(.is-admin):not(.is-editor) .pode-editar{display:none!important}
       <button class="btn ghost" id="btnPresent" aria-pressed="false" type="button">Modo apresentação</button>
       <details class="menu edit-only" id="menu"><summary class="btn ghost">Arquivo ▾</summary>
         <div class="menu-pop">
-          <button type="button" id="btnSaveFile"><span>Atualizar do OneDrive</span><small>Busca as alterações mais recentes da pasta CRM SAM</small></button>
+          <button type="button" id="btnSaveFile"><span>Atualizar do SharePoint</span><small>Busca as alterações mais recentes da pasta CRM SAM</small></button>
           <button type="button" id="btnCsv"><span>Exportar para Excel (.csv)</span><small>Clientes com os filtros atuais</small></button>
           <button type="button" id="btnJson"><span>Baixar backup (.json)</span><small>Cópia de segurança dos dados</small></button>
           <button type="button" id="btnImport" class="somente-admin"><span>Importar backup (.json)</span><small>Substitui os dados atuais na pasta CRM SAM</small></button>
@@ -406,7 +406,7 @@ function guardWrite(){ if(!podeEditar()) throw {code:'invalid_argument'}; }
 function guardAdmin(){ if(!podeAdmin()) throw {code:'invalid_argument'}; }
 /* editor só mexe no que é dele; admin mexe em tudo */
 function guardDono(id){ if(podeAdmin()) return; const d=LOCAL.deals.find(x=>x.id===id); if(d&&String(d.editor||'').toLowerCase()!==emailAtual()) throw {code:'invalid_argument'}; }
-/* Mesma interface do banco anterior; agora grava na pasta "CRM SAM" do OneDrive */
+/* Mesma interface do banco anterior; agora grava na pasta "CRM SAM" do SharePoint */
 const cloudDb={
   collection(){ return { doc(id){ id=id||newId(); return {
     async set(body){ guardWrite(); guardDono(id); const rec={...clone(body),id}; const i=LOCAL.deals.findIndex(d=>d.id===id);
@@ -787,13 +787,13 @@ function importJson(file){
 }
 let syncErro=false;
 function updateSaveStatus(){
-  const el=$('status'); if(!el) return;
+  const el=$('status'); if(!el) return; el.title=msAccount?CAMINHO:'';
   const quando=LOCAL.salvoEm?new Date(LOCAL.salvoEm).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'';
   if(!msAccount||!loaded){ el.textContent=''; }
-  else if(!cloudOk) el.innerHTML='<span class="dirty"></span>Sem conexão com o OneDrive · exibindo cópia local (somente leitura)';
-  else if(salvando) el.innerHTML='<span class="dirty"></span>Salvando na pasta CRM SAM…';
-  else if(temPendencia()) el.innerHTML=syncErro?'<span class="dirty"></span>Não foi possível salvar no OneDrive · clique em Salvar':'<span class="dirty"></span>Alterações aguardando envio ao OneDrive';
-  else el.textContent='☁ OneDrive · CRM SAM'+(quando?' · dados de '+quando:'')+(podeEditar()?'':' · somente leitura');
+  else if(!cloudOk) el.innerHTML='<span class="dirty"></span>Sem conexão com o SharePoint · exibindo cópia local (somente leitura)';
+  else if(salvando) el.innerHTML='<span class="dirty"></span>Salvando no SharePoint…';
+  else if(temPendencia()) el.innerHTML=syncErro?'<span class="dirty"></span>Não foi possível salvar no SharePoint · clique em Salvar':'<span class="dirty"></span>Alterações aguardando envio ao SharePoint';
+  else el.textContent='☁ SharePoint · CRM SAM'+(quando?' · dados de '+quando:'')+(podeEditar()?'':' · somente leitura');
   dirty=temPendencia();
   $('btnSaveTop').classList.toggle('primary',dirty); $('btnNew').classList.toggle('primary',!dirty);
 }
@@ -809,7 +809,7 @@ $('flost').onchange=e=>{st.lost=e.target.checked;saveUi();render();};
 $('btnNew').onclick=()=>openDeal(null);
 $('btnCsv').onclick=()=>{$('menu').open=false;exportCsv();};
 $('btnSaveFile').onclick=()=>{$('menu').open=false;atualizarAgora();};
-$('btnSaveTop').onclick=()=>{ if(!temPendencia()){ toast('Tudo salvo no OneDrive'); return; } clearTimeout(saveTimer); salvarDados(); };
+$('btnSaveTop').onclick=()=>{ if(!temPendencia()){ toast('Tudo salvo no SharePoint'); return; } clearTimeout(saveTimer); salvarDados(); };
 $('btnUsers').onclick=()=>openUsers();
 $('btnConta').onclick=trocarConta;
 $('gateBtn').onclick=()=>{ if(gateAcao) gateAcao(); };
@@ -855,16 +855,13 @@ document.addEventListener('mouseleave',()=>tip.hidden=true);
 
 /* ---------- Dados ---------- */
 function setStatus(t){$('status').textContent=t;}
-/* ==================== MICROSOFT 365 / ONEDRIVE ==================== */
+/* ==================== MICROSOFT 365 / SHAREPOINT ==================== */
 /* Mesmo registro de app do Azure dos outros sistemas MAQCAMPO.
    Cadastre a URL publicada (GitHub Pages) como Redirect URI do tipo SPA.  */
 const AZURE_CLIENT_ID='a02d9ccd-9650-4855-99ce-3ad5ec98c381';
 const AZURE_TENANT_ID='aa796efe-0373-4718-9911-6cbf0bfa260f';
 const GRAPH_SCOPES=['Files.ReadWrite','Sites.ReadWrite.All','User.Read'];
-/* Dono da pasta "CRM SAM" no OneDrive (e-mail corporativo de quem criou a pasta).
-   Os demais usuários acessam a pasta do OneDrive DESSA pessoa. */
-const ONEDRIVE_DONO='';
-const ONEDRIVE_HOST='maqcampoirrigacao-my.sharepoint.com';
+/* Armazenamento: pasta CRM SAM do site MCPOIRRIGACAO, definida pelo link (PASTA_LINK) */
 const PASTA='CRM SAM';
 const DADOS_FILE='crm_sam_dados.json';
 const ACESSO_FILE='crm_sam_acesso.json';
@@ -884,25 +881,29 @@ let cloudEtag=null, acessoEtag=null, cloudOk=false, salvando=false, pendente=fal
 let _driveBase=null;
 
 function emailAtual(){ return msAccount?String(msAccount.username||'').toLowerCase():''; }
-function souDono(){ const d=ONEDRIVE_DONO.trim().toLowerCase(); return !d||d===emailAtual(); }
 async function getToken(){
   if(!msalInstance||!msAccount) return null;
   try{ return (await msalInstance.acquireTokenSilent({scopes:GRAPH_SCOPES,account:msAccount})).accessToken; }
   catch(e){ try{ return (await msalInstance.acquireTokenPopup({scopes:GRAPH_SCOPES,account:msAccount})).accessToken; }catch(e2){ return null; } }
 }
-/* Localiza o OneDrive onde está a pasta CRM SAM */
+/* Link da pasta CRM SAM (o mesmo que aparece em "Copiar link" no SharePoint).
+   O app grava SOMENTE nesta pasta. Se o link não abrir, nada é salvo. */
+const PASTA_LINK='https://maqcampoirrigacao.sharepoint.com/:f:/s/MCPOIRRIGACAO/IgBGAtqGFxaXRrJhUQ8lzqOJAd3QQQZ_zeb-i3Ox7QMpddU?e=Q8SRTl';
+let CAMINHO=`SharePoint › MCPOIRRIGACAO › ${PASTA}`;
+const shareId=u=>'u!'+btoa(unescape(encodeURIComponent(u))).replace(/=+$/,'').replace(/\//g,'_').replace(/\+/g,'-');
+/* Retorna o prefixo da pasta: .../drives/{drive}/items/{pasta}:/  */
 async function driveBase(){
   if(_driveBase) return _driveBase;
-  if(souDono()){ _driveBase=GRAPH+'/me/drive'; return _driveBase; }
-  const t=await getToken(); if(!t) return null;
-  const dono=ONEDRIVE_DONO.trim().toLowerCase(), h={Authorization:'Bearer '+t};
-  try{ const r=await fetch(`${GRAPH}/sites/${ONEDRIVE_HOST}:/personal/${dono.replace(/[.@]/g,'_')}`,{headers:h});
-    if(r.ok){ const d=await r.json(); _driveBase=`${GRAPH}/sites/${d.id}/drive`; return _driveBase; } }catch(e){}
-  try{ const r=await fetch(`${GRAPH}/users/${encodeURIComponent(dono)}/drive`,{headers:h});
-    if(r.ok){ const d=await r.json(); _driveBase=`${GRAPH}/drives/${d.id}`; return _driveBase; } }catch(e){}
+  const t=await getToken(); if(!t) return null; const h={Authorization:'Bearer '+t};
+  // somente a pasta do link — sem pasta reserva
+  for(const link of [PASTA_LINK,PASTA_LINK.split('?')[0]]){
+    try{ const r=await fetch(`${GRAPH}/shares/${shareId(link)}/driveItem`,{headers:h});
+      if(r.ok){ const it=await r.json(); const drv=it.parentReference&&it.parentReference.driveId;
+        if(it.folder&&drv&&it.id){ _driveBase=`${GRAPH}/drives/${drv}/items/${it.id}:/`; CAMINHO=`SharePoint › MCPOIRRIGACAO › ${it.name}`+(it.webUrl?`\n${decodeURIComponent(it.webUrl)}`:''); return _driveBase; } } }catch(e){}
+  }
   return null;
 }
-const itemUrl=(base,file)=>base+'/root:/'+[PASTA,...file.split('/')].map(encodeURIComponent).join('/');
+const itemUrl=(base,file)=>base+file.split('/').map(encodeURIComponent).join('/');
 /* GET metadados (ETag) + conteúdo JSON. skipIfEtag: não baixa se não mudou */
 async function graphGetJsonEtag(file,skipIfEtag){
   const t=await getToken(), base=t&&await driveBase(); if(!t||!base) return {ok:false,status:0};
@@ -945,18 +946,18 @@ function aposCarregar(){ sync(); loaded=true; cacheLocal(); render(); updateSave
 async function sincronizarNuvem(){
   if(!msAccount) return;
   acessoEstado='pendente'; cloudErro=''; applyAccess();
-  if(!await driveBase()){ acessoEstado='erro'; cloudErro=`Não foi possível abrir o OneDrive onde está a pasta "${PASTA}". Confira sua conexão ou peça ao responsável para compartilhar a pasta com você.`; applyAccess(); return; }
+  if(!await driveBase()){ acessoEstado='erro'; cloudErro=`Não foi possível abrir a pasta "${PASTA}" no SharePoint. Confira sua conexão ou peça acesso à pasta.`; applyAccess(); return; }
   const ac=await graphGetJsonEtag(ACESSO_FILE);
   if(ac.ok&&ac.data){ acesso={emailsAutorizados:ac.data.emailsAutorizados||[],emailsEditores:ac.data.emailsEditores||[],emailsComuns:ac.data.emailsComuns||[]}; acessoEtag=ac.etag; acessoEstado='ok'; }
-  else if(ac.ok&&ac.missing&&souDono()){
-    // primeiro acesso do dono: ele vira o primeiro administrador
+  else if(ac.ok&&ac.missing){
+    // primeiro acesso: quem cria a pasta vira o primeiro administrador
     acesso={emailsAutorizados:[emailAtual()],emailsEditores:[],emailsComuns:[]}; acessoEtag=null;
     acessoEstado=(await saveAcesso(true))?'ok':'erro';
-    if(acessoEstado==='erro') cloudErro=`Não foi possível criar a pasta "${PASTA}" no seu OneDrive.`;
+    if(acessoEstado==='erro') cloudErro=`Não foi possível criar a pasta "${PASTA}" no SharePoint (sem permissão de edição no site?).`;
   }
-  else { acessoEstado='erro'; cloudErro=ac.missing||ac.status===403||ac.status===404
-      ? `A pasta "${PASTA}" não está compartilhada com você. Peça ao responsável para compartilhá-la.`
-      : 'Não foi possível conectar ao OneDrive agora. Tente novamente em instantes.'; }
+  else { acessoEstado='erro'; cloudErro=ac.status===403||ac.status===404
+      ? `Você não tem acesso à pasta "${PASTA}" no SharePoint. Peça acesso a um administrador.`
+      : 'Não foi possível conectar ao SharePoint agora. Tente novamente em instantes.'; }
   applyAccess();
   if(acessoEstado!=='ok'||!['admin','editor','comum'].includes(nivelAcesso())) return;
   const dd=await graphGetJsonEtag(DADOS_FILE);
@@ -965,7 +966,7 @@ async function sincronizarNuvem(){
   else {
     cloudOk=false;
     try{ const c=JSON.parse(localStorage.getItem(KEY)||'null'); if(c&&c.dono===emailAtual()&&Array.isArray(c.deals)) setLocal(c); }catch(e){}
-    toast('Sem conexão com o OneDrive — exibindo a última cópia deste aparelho.');
+    toast('Sem conexão com o SharePoint — exibindo a última cópia deste aparelho.');
   }
   applyAccess(); aposCarregar(); startPolling();
   if(cloudOk&&temPendencia()) salvarDados();
@@ -987,11 +988,11 @@ async function salvarDados(){
       else if(dd.ok&&dd.missing){ cloudEtag=null; }
       else break;
     }
-    else { if(r.status===403) erro='Sem permissão de edição na pasta CRM SAM do OneDrive.'; break; }
+    else { if(r.status===403) erro='Sem permissão de edição na pasta CRM SAM do SharePoint.'; break; }
   }
   salvando=false;
   if(ok){ if(!pendente) limparPendencias(); cacheLocal(); backupDiario(); }
-  else { syncErro=true; toast(erro||'Não foi possível salvar no OneDrive. As alterações continuam pendentes.'); }
+  else { syncErro=true; toast(erro||'Não foi possível salvar no SharePoint. As alterações continuam pendentes.'); }
   updateSaveStatus();
   if(pendente){ pendente=false; salvarDados(); }
 }
@@ -1017,7 +1018,7 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden) puxarSeM
 async function atualizarAgora(){
   if(!msAccount) return;
   if(temPendencia()){ await salvarDados(); if(temPendencia()) return; }
-  await puxarSeMudou(true); toast('Dados atualizados do OneDrive');
+  await puxarSeMudou(true); toast('Dados atualizados do SharePoint');
 }
 async function saveAcesso(silencioso){
   let ok=false, tent=0; const L=a=>(a||[]).map(x=>String(x).toLowerCase()), uni=(a,b)=>Array.from(new Set([...L(a),...L(b)]));
@@ -1031,7 +1032,7 @@ async function saveAcesso(silencioso){
       else if(ac.ok&&ac.missing) acessoEtag=null; else break;
     } else break;
   }
-  if(!ok&&!silencioso) toast('Não foi possível salvar os usuários no OneDrive.');
+  if(!ok&&!silencioso) toast('Não foi possível salvar os usuários no SharePoint.');
   return ok;
 }
 
@@ -1059,7 +1060,7 @@ function showGate(msg,info,b1,b2){
 function applyAccess(){
   const nivel=nivelAcesso(), logado='Logado como: '+emailAtual();
   const entrar=['Entrar com Microsoft',login], outra=['Entrar com outra conta',()=>login(true)], denovo=['Tentar novamente',()=>sincronizarNuvem()];
-  if(nivel==='carregando') showGate(msAccount?`Abrindo a pasta "${PASTA}" no OneDrive…`:'Conectando ao Microsoft 365…', msAccount?logado:'');
+  if(nivel==='carregando') showGate(msAccount?`Abrindo a pasta "${PASTA}" no SharePoint…`:'Conectando ao Microsoft 365…', msAccount?logado:'');
   else if(nivel==='semlogin') showGate('Não foi possível carregar o login da Microsoft. Verifique a conexão com a internet.','',['Recarregar',()=>location.reload()]);
   else if(nivel==='deslogado') showGate('Faça login com sua conta Microsoft para acessar.','',entrar);
   else if(nivel==='erro') showGate(cloudErro,logado,denovo,outra);
@@ -1092,7 +1093,7 @@ async function login(outraConta){
 }
 async function trocarConta(){
   if(!msAccount) return;
-  if(temPendencia()&&!confirm('Há alterações ainda não enviadas ao OneDrive. Sair mesmo assim?')) return;
+  if(temPendencia()&&!confirm('Há alterações ainda não enviadas ao SharePoint. Sair mesmo assim?')) return;
   if(!confirm(`Sair de ${msAccount.username}?`)) return;
   const acc=msAccount; resetSessao(); msAccount=null; applyAccess();
   try{ await msalInstance.logoutPopup({account:acc}); }catch(e){}
@@ -1124,7 +1125,7 @@ function renderUsers(){
       <div class="addact"><input id="uNovo_${papel}" type="email" placeholder="email@empresa.com.br" aria-label="Novo e-mail"><button class="btn primary" type="button" data-u="add" data-p="${papel}">Adicionar</button></div>
     </fieldset>`;
   $('umodal').innerHTML=`<div class="ov" id="uov"><div class="drawer" role="dialog" aria-modal="true" aria-labelledby="uT">
-    <div class="drawer-h"><div><div class="eyebrow">Acesso · OneDrive › ${esc(PASTA)}</div><h2 id="uT">Usuários do CRM</h2></div><button class="x" id="uX" type="button" aria-label="Fechar">×</button></div>
+    <div class="drawer-h"><div><div class="eyebrow">Acesso · SharePoint › ${esc(PASTA)}</div><h2 id="uT">Usuários do CRM</h2></div><button class="x" id="uX" type="button" aria-label="Fechar">×</button></div>
     <p class="status" style="margin:0"><b>Administrador:</b> vê e edita tudo, exclui, importa, define a meta e gerencia usuários. <b>Editor:</b> cadastra e edita apenas as próprias oportunidades e só enxerga essas. <b>Comum:</b> visualiza todas, sem editar.</p>
     ${bloco('admin','Administradores','Nenhum administrador.')}
     ${bloco('editor','Editores (veem só os próprios cadastros)','Nenhum editor.')}
